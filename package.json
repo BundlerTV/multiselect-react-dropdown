@@ -7,6 +7,9 @@
     "dev": "webpack-dev-server",
     "build": "webpack"
   },
+  "precommit": [
+    "build"
+  ],
   "author": "srigar s",
   "license": "MIT",
   "homepage": "https://10xn41w767.codesandbox.io/",
