@@ -22,7 +22,7 @@ export class Multiselect extends React.Component {
       toggleOptionsList: false,
       highlightOption: props.avoidHighlightFirstOption ? -1 : 0,
 			showCheckbox: props.showCheckbox,
-      groupedObject: [],
+      groupedObject: {},
       closeIconType: closeIconTypes[props.closeIcon] || closeIconTypes['circle']
     };
 		this.searchWrapper = React.createRef();
@@ -145,14 +145,54 @@ export class Multiselect extends React.Component {
   }
 
   groupByOptions(options) {
+    /* From options like
+      [
+        { name: 'Srigar', cat: 'Comedy' },
+        { name: 'Phil', cat: 'Comedy' },
+        { name: 'Jerry', cat: 'Comedy' },
+        { name: 'Sam', cat: 'Drama' },
+        { name: 'Sam2', cat: 'Drama' },
+        { name: 'Sam3', cat: 'Drama' },
+        { name: 'Sam4', cat: 'Drama' },
+        { name: 'Gritty', cat: 'Westerns' }
+      ]
+      Produces groupedObject like
+      {
+        "Comedy": {
+          checked: false,
+          items: [
+            {"name":"Srigar","cat":"Comedy"},
+            {"name":"Phil","cat":"Comedy"},
+            {"name":"Jerry","cat":"Comedy"}
+          ]
+        },
+        "Drama": {
+          checked: false,
+          items:[
+            {"name":"Sam","cat":"Drama"},
+            {"name":"Sam2","cat":"Drama"},
+            {"name":"Sam3","cat":"Drama"},
+            {"name":"Sam4","cat":"Drama"}
+          ]
+        },
+        "Westerns": {
+          checked: false,
+          items:[
+            {"name":"Gritty","cat":"Westerns"}
+          ]
+        }
+      }
+      This is a change from the original with the creation of an object at the top level;
+      the addition of property "checked";
+      making the options a value of "items" instead of the top value.
+    */
     const { groupBy } = this.props;
     const groupedObject = options.reduce(function(r, a) {
       const key = a[groupBy] || "Others";
-      r[key] = r[key] || [];
-      r[key].push(a);
+      r[key] = r[key] || {checked:true, items: []}
+      r[key]["items"].push(a);
       return r;
     }, Object.create({}));
-    
     this.setState({ groupedObject });
   }
 
@@ -303,20 +343,44 @@ export class Multiselect extends React.Component {
   }
 
   handleGroupCbToggle(groupName) {
-    const { groupedObject } = this.state;
-    let newState = !groupedObject[groupName].checked
+    const { displayValue } = this.props
+    let { groupedObject, selectedValues } = this.state;
+    // Set groupedObject[groupName].checked by inspecting all its children's checked states.
+    // If all children are checked, set groupedObject[groupName].checked = false and all children.checked = false.
+    // Otherwise, set groupedObject[groupName].checked = true and all children.checked = true.
+    // We can never end up with the group having indeterminate state in this routine.
+    let childrenCompState = groupedObject[groupName]["items"].reduce((r, a) => {
+      let v = this.isSelectedValue(a)
+      return r && v
+    }, true)
+    // Set group to opposite of childrenComposite
+    groupedObject[groupName].checked = !childrenCompState
     this.setState({
-      groupedObject: ()
+      groupedObject: groupedObject
+    })
+    // And then all children
+    groupedObject[groupName]["items"].forEach((o) => {
+      if (!childrenCompState) {
+        let there = this.isSelectedValue(o)
+        // If not there, add o.
+        if (!there) {
+          this.onSelectItem(o)
+        }
+      } else {
+        this.onRemoveSelectedItem(o)
+      }
     })
   }
-  getCheckState(groupName) {
-    const { groupedObject } = this.state;
-    return groupedObject[groupName].checked
+
+  getGroupCheckState(groupName) {
+    return this.state.groupedObject[groupName].checked
   }
 
   renderGroupByOptions() {
     const { isObject = false, displayValue, showCheckbox, style, singleSelect, useActiveGroupBy } = this.props;
     const { groupedObject } = this.state;
+
+    //console.log(JSON.stringify(Object.keys(groupedObject)))
     return Object.keys(groupedObject).map(obj => { // obj = the unique groupBy fields, one by one
 			return (
 				<React.Fragment>
@@ -325,19 +389,20 @@ export class Multiselect extends React.Component {
               key={obj}
               className={ms.groupHeading}
               style={style['groupHeading']}
+              onClick={() => {this.handleGroupCbToggle(obj)}}
             >
               <input
                 type="checkbox"
                 className={ms.checkbox}
-                checked={this.getCheckState(obj)}
-                onClick={() => {this.handleGroupCbToggle(obj)}}
+                readonly
+                checked={this.getGroupCheckState(obj)}
               />
               {obj}
             </li>
           ) : (
 					  <li key={obj} className={ms.groupHeading} style={style['groupHeading']}>{obj}</li>
           )}
-					{groupedObject[obj].map((option, i) => (
+					{groupedObject[obj]["items"].map((option, i) => (
 						<li
 							key={`option${i}`}
 							style={style['option']}
