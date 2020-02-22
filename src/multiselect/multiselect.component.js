@@ -45,6 +45,7 @@ export class Multiselect extends React.Component {
     this.resetSelectedValues = this.resetSelectedValues.bind(this);
     this.getSelectedItems = this.getSelectedItems.bind(this);
     this.getSelectedItemsCount = this.getSelectedItemsCount.bind(this);
+    this.handleGroupCbToggle = this.handleGroupCbToggle.bind(this)
   }
 
   initialSetValue() {
@@ -77,8 +78,10 @@ export class Multiselect extends React.Component {
   }
 
   componentDidMount() {
-		this.initialSetValue();
-    this.searchWrapper.current.addEventListener("click", this.listenerCallback);
+    this.initialSetValue();
+    if (this.props.showSearchAndChips) {
+      this.searchWrapper.current.addEventListener("click", this.listenerCallback);
+    }
   }
 
   componentDidUpdate(prevProps) {
@@ -93,11 +96,15 @@ export class Multiselect extends React.Component {
   }
 
   listenerCallback() {
-    this.searchBox.current.focus();
+    if (this.props.showSearchAndChips) {
+      this.searchBox.current.focus();
+    }
   }
 
   componentWillUnmount() {
-    this.searchWrapper.current.removeEventListener('click', this.listenerCallback);
+    if (this.props.showSearchAndChips) {
+      this.searchWrapper.current.removeEventListener('click', this.listenerCallback);
+    }
   }
 
   // Skipcheck flag - value will be true when the func called from on deselect anything.
@@ -263,7 +270,7 @@ export class Multiselect extends React.Component {
 				this.removeSelectedValuesFromOptions(true);
       }
     });
-    if (!this.props.closeOnSelect) {
+    if (!this.props.closeOnSelect && this.props.showSearchAndChips) {
       this.searchBox.current.focus();
     }
   }
@@ -295,13 +302,41 @@ export class Multiselect extends React.Component {
     );
   }
 
-  renderGroupByOptions() {
-    const { isObject = false, displayValue, showCheckbox, style, singleSelect } = this.props;
+  handleGroupCbToggle(groupName) {
     const { groupedObject } = this.state;
-    return Object.keys(groupedObject).map(obj => {
+    let newState = !groupedObject[groupName].checked
+    this.setState({
+      groupedObject: ()
+    })
+  }
+  getCheckState(groupName) {
+    const { groupedObject } = this.state;
+    return groupedObject[groupName].checked
+  }
+
+  renderGroupByOptions() {
+    const { isObject = false, displayValue, showCheckbox, style, singleSelect, useActiveGroupBy } = this.props;
+    const { groupedObject } = this.state;
+    return Object.keys(groupedObject).map(obj => { // obj = the unique groupBy fields, one by one
 			return (
 				<React.Fragment>
-					<li key={obj} className={ms.groupHeading} style={style['groupHeading']}>{obj}</li>
+          {useActiveGroupBy ? (
+            <li
+              key={obj}
+              className={ms.groupHeading}
+              style={style['groupHeading']}
+            >
+              <input
+                type="checkbox"
+                className={ms.checkbox}
+                checked={this.getCheckState(obj)}
+                onClick={() => {this.handleGroupCbToggle(obj)}}
+              />
+              {obj}
+            </li>
+          ) : (
+					  <li key={obj} className={ms.groupHeading} style={style['groupHeading']}>{obj}</li>
+          )}
 					{groupedObject[obj].map((option, i) => (
 						<li
 							key={`option${i}`}
@@ -412,35 +447,37 @@ export class Multiselect extends React.Component {
 
   renderMultiselectContainer() {
     const { inputValue, toggleOptionsList, selectedValues } = this.state;
-    const { placeholder, style, singleSelect, id } = this.props;
+    const { placeholder, style, singleSelect, id, showSearchAndChips } = this.props;
     return (
       <div className={ms.multiSelectContainer} id="multiselectContainerReact" style={style['multiselectContainer']}>
-        <div className={`${ms.searchWarpper} ${singleSelect ? ms.singleSelect : ''}`} 
-          ref={this.searchWrapper} style={style['searchBox']} 
-          onClick={singleSelect ? this.toggelOptionList : () => {}}
-        >
-          {this.renderSelectedList()}
-          <input
-						type="text"
-						ref={this.searchBox}
-            className="searchBox"
-            id={id}
-            onChange={this.onChange}
-            value={inputValue}
-            onFocus={this.toggelOptionList}
-            onBlur={() => setTimeout(this.toggelOptionList, 200)}
-            placeholder={singleSelect && selectedValues.length ? '' : placeholder}
-            onKeyDown={this.onArrowKeyNavigation}
-            style={style['inputField']}
-            disabled={singleSelect}
-          />
-          {singleSelect && <i
-            className={`icon_cancel ${ms.icon_down_dir}`}
-          />}
-        </div>
+        {showSearchAndChips && <div
+            className={`${ms.searchWarpper} ${singleSelect ? ms.singleSelect : ''}`} 
+            ref={this.searchWrapper} style={style['searchBox']} 
+            onClick={singleSelect ? this.toggelOptionList : () => {}}
+          >
+            {this.renderSelectedList()}
+            <input
+              type="text"
+              ref={this.searchBox}
+              className="searchBox"
+              id={id}
+              onChange={this.onChange}
+              value={inputValue}
+              onFocus={this.toggelOptionList}
+              onBlur={() => setTimeout(this.toggelOptionList, 200)}
+              placeholder={singleSelect && selectedValues.length ? '' : placeholder}
+              onKeyDown={this.onArrowKeyNavigation}
+              style={style['inputField']}
+              disabled={singleSelect}
+            />
+            {singleSelect && <i
+              className={`icon_cancel ${ms.icon_down_dir}`}
+            />}
+          </div>
+        }
         <div
           className={`optionListContainer ${ms.optionListContainer} ${
-            toggleOptionsList ? ms.displayBlock : ms.displayNone
+            (!showSearchAndChips || toggleOptionsList) ? ms.displayBlock : ms.displayNone
           }`}
         >
           {this.renderOptionList()}
@@ -468,10 +505,12 @@ Multiselect.defaultProps = {
 	emptyRecordMsg: "No Options Available",
 	onSelect: () => {},
   onRemove: () => {},
-  closeIcon: 'circle2',
+  closeIcon: 'close',
   singleSelect: false,
   caseSensitiveSearch: false,
   id: '',
   closeOnSelect: true,
-  avoidHighlightFirstOption: false
+  avoidHighlightFirstOption: false,
+  showSearchAndChips: true,
+  useActiveGroupBy: false
 };
